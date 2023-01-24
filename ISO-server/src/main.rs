@@ -110,72 +110,52 @@ async fn async_main() -> std::io::Result<()> {
 
     info!("Database loaded.");
 
+    let builder;
+
     if cfg!(debug_assertions) {
-        // Create builder without ssl
-        return HttpServer::new(move || {
-            let cors = Cors::default()
-                .allow_any_origin()
-                .allow_any_header()
-                .allow_any_method()
-                .send_wildcard()
-                .max_age(3600);
-
-            App::new()
-                .wrap(actix_web::middleware::Logger::new(LOGGER_STR))
-                .wrap(actix_web::middleware::Compress::default())
-                .wrap(cors)
-                .service(get_post_page)
-                .service(get_user_info)
-                .service(new_post)
-                .service(start_verification)
-                .service(check_verification)
-                .service(claim_post)
-                .service(get_individual_post)
-                .service(ResourceFiles::new("/", generate()))
-
-        })
-        .bind(ADDRESS)?
-        .run()
-        .await;
+        info!("Starting DEBUG server on {}", ADDRESS);
+        builder = None;
     } else {
+        info!("Starting PROD server on {}", ADDRESS);
 
-        let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-        builder
+        let mut temp_builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+        temp_builder
             .set_private_key_file(
                 "/etc/letsencrypt/live/isoapp.dev/privkey.pem",
                 SslFiletype::PEM,
             )
             .unwrap();
-        builder
+            temp_builder
             .set_certificate_chain_file("/etc/letsencrypt/live/isoapp.dev/fullchain.pem")
             .unwrap();
 
-        // Create builder without ssl
-        return HttpServer::new(move || {
-            let cors = Cors::default()
-                .allow_any_origin()
-                .allow_any_header()
-                .allow_any_method()
-                .send_wildcard()
-                .max_age(3600);
+        builder = Some(temp_builder);
+    }
+    let server = HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_header()
+            .allow_any_method()
+            .send_wildcard()
+            .max_age(3600);
 
             App::new()
-                .wrap(actix_web::middleware::Logger::new(LOGGER_STR))
-                .wrap(actix_web::middleware::Compress::default())
-                .wrap(cors)
-                .service(get_post_page)
-                .service(get_user_info)
-                .service(new_post)
-                .service(start_verification)
-                .service(check_verification)
-                .service(claim_post)
-                .service(get_individual_post)
-                .service(ResourceFiles::new("/", generate()))
+            .wrap(actix_web::middleware::Logger::new(LOGGER_STR))
+            .wrap(actix_web::middleware::Compress::default())
+            .wrap(cors)
+            .service(get_post_page)
+            .service(get_user_info)
+            .service(new_post)
+            .service(start_verification)
+            .service(check_verification)
+            .service(claim_post)
+            .service(get_individual_post)
+            .service(ResourceFiles::new("/", generate()))
+    });
 
-
-        })
-        .bind_openssl(ADDRESS_HTTPS, builder)?
-        .run()
-        .await;
+    if builder.is_some() {
+        server.bind_openssl(ADDRESS, builder.unwrap())?.run().await
+    } else {
+        server.bind(ADDRESS)?.run().await
     }
 }
