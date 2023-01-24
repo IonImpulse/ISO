@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "ISO",
-    "slug": "ISO",
+    "name": "ISO-app",
+    "slug": "ISO-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
